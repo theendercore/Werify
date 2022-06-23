@@ -105,7 +105,8 @@ public class Werify implements ModInitializer {
                 };
                 webSocketClient.connectBlocking();
                 webSocketClient.send("{\"server\":\"" + serverID + "\",\"user\": \"" + id + "\"}");
-//                            player.sendMessage(Text.literal("You have been verified! Welcome to the server! :)"), true);
+                player.networkHandler.disconnect(Text.literal("You have been verified! Welcome to the server! :)"));
+
                 webSocketClient.close();
             } catch (URISyntaxException | InterruptedException e) {
                 LOGGER.warn("Cannot Connect to DB or WS!");
