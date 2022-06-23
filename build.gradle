@@ -20,6 +20,11 @@ repositories {
 	mavenCentral()
 }
 
+configurations {
+	// configuration that holds jars to include in the jar
+	extraLibs
+}
+
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -29,8 +34,10 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
+	extraLibs 'org.mongodb:mongo-java-driver:3.12.11'
 	implementation 'org.mongodb:mongo-java-driver:3.12.11'
 
+	extraLibs 'org.java-websocket:Java-WebSocket:1.5.3'
 	implementation 'org.java-websocket:Java-WebSocket:1.5.3'
 
 
@@ -59,6 +66,9 @@ java {
 jar {
 	from("LICENSE") {
 		rename { "${it}_${project.archivesBaseName}"}
+	}
+	from {
+		configurations.extraLibs.collect { it.isDirectory() ? it : zipTree(it) }
 	}
 }
 
