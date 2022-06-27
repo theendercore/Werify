@@ -27,10 +27,39 @@ public class Werify implements ModInitializer {
 
     public static final String MODID = "werify";
     public static final Logger LOGGER = LoggerFactory.getLogger(MODID);
+    public static WebSocketClient webSocketClient;
 
     @Override
     public void onInitialize() {
         ModConfig.getConfig().load();
+        try {
+            webSocketClient = new WebSocketClient(new URI(Objects.requireNonNull(ModConfig.getConfig().getWsURI()))) {
+                @Override
+                public void onOpen(ServerHandshake serverHandshake) {
+                    LOGGER.info("Connected to server!");
+                }
+
+                @Override
+                public void onMessage(String s) {
+                    LOGGER.info("Message: " + s);
+                }
+
+                @Override
+                public void onClose(int i, String s, boolean b) {
+                    LOGGER.info("Disconnected from server!");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    LOGGER.warn("ERROR: \n" + e);
+                }
+            };
+
+            webSocketClient.connectBlocking();
+        } catch (URISyntaxException | InterruptedException e) {
+            LOGGER.warn("WebSocket Error Be Warned!");
+            throw new RuntimeException(e);
+        }
 
 
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated, environment) -> dispatcher.register(CommandManager.literal("werify").then(CommandManager.argument("password", StringArgumentType.word()).executes(context -> {
@@ -57,10 +86,6 @@ public class Werify implements ModInitializer {
                     return 0;
                 }
 
-                if (submitCluster.find(eq("minecraftUUID", playerUUID)).first() != null) {
-                    player.sendMessage(Text.literal("This Minecraft account has been linked to a discord account already!"));
-                    return 0;
-                }
                 Document playerInfo = (collection.find(eq("password", pwd)).first());
 
                 assert playerInfo != null;
@@ -70,47 +95,25 @@ public class Werify implements ModInitializer {
 
                 int value = 0;
                 for (int i = 0; i < VerifiedSerevrs.size(); i++) {
-                    String yes = (String) VerifiedSerevrs.get(i).get("serverID");
-                    if (Objects.equals(yes, serverID)) {
+                    String remoteSerevrID = (String) VerifiedSerevrs.get(i).get("serverID");
+                    String remoteUUID = (String) VerifiedSerevrs.get(i).get("minecraftUUID");
+                    if (Objects.equals(remoteSerevrID, serverID)) {
                         value = i;
+                        if (Objects.equals(remoteUUID, playerUUID)) {
+                            player.sendMessage(Text.literal("This Minecraft account has been linked to a discord account already!"));
+                            return 0;
+                        }
                         break;
                     }
                 }
 
-                Bson updates = Updates.combine(Updates.set("minecraftUUID", playerUUID), Updates.set("verifiedSerevrs." + value + ".verified", true));
+                Bson updates = Updates.combine(Updates.set("verifiedSerevrs." + value + ".minecraftUUID", playerUUID), Updates.set("verifiedSerevrs." + value + ".verified", true));
 
                 submitCluster.updateOne(new Document().append("_id", id), updates);
                 collection.findOneAndDelete(new Document().append("_id", playerInfo.get("_id")));
 
-                WebSocketClient webSocketClient = new WebSocketClient(new URI(Objects.requireNonNull(config.getWsURI()))) {
-                    @Override
-                    public void onOpen(ServerHandshake serverHandshake) {
-                        LOGGER.info("Connected to server!");
-                    }
-
-                    @Override
-                    public void onMessage(String s) {
-                        LOGGER.info("Message: " + s);
-                    }
-
-                    @Override
-                    public void onClose(int i, String s, boolean b) {
-                        LOGGER.info("Disconnected from server!");
-                    }
-
-                    @Override
-                    public void onError(Exception e) {
-                        LOGGER.warn("ERROR: \n" + e);
-                    }
-                };
-                webSocketClient.connectBlocking();
                 webSocketClient.send("{\"server\":\"" + serverID + "\",\"user\": \"" + id + "\"}");
                 player.networkHandler.disconnect(Text.literal("You have been verified! Welcome to the server! :)"));
-
-                webSocketClient.close();
-            } catch (URISyntaxException | InterruptedException e) {
-                LOGGER.warn("Cannot Connect to DB or WS!");
-                throw new RuntimeException(e);
             }
             return 1;
         })).executes(context -> {
