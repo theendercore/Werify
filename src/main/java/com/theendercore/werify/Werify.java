@@ -55,8 +55,7 @@ public class Werify implements ModInitializer {
                 }
             };
 
-            webSocketClient.connectBlocking();
-        } catch (URISyntaxException | InterruptedException e) {
+        } catch (URISyntaxException e ) {
             LOGGER.warn("WebSocket Error Be Warned!");
             throw new RuntimeException(e);
         }
@@ -78,6 +77,7 @@ public class Werify implements ModInitializer {
             String playerUUID = player.getUuidAsString();
 
             try (MongoClient mongoClient = MongoClients.create(config.getMongoURI())) {
+                webSocketClient.connectBlocking();
                 MongoDatabase database = mongoClient.getDatabase("myFirstDatabase");
                 MongoCollection<Document> collection = database.getCollection("temppasswordmodels");
                 MongoCollection<Document> submitCluster = database.getCollection("verifymodels");
@@ -109,11 +109,15 @@ public class Werify implements ModInitializer {
 
                 Bson updates = Updates.combine(Updates.set("verifiedSerevrs." + value + ".minecraftUUID", playerUUID), Updates.set("verifiedSerevrs." + value + ".verified", true));
 
+
+                webSocketClient.send("{\"server\":\"" + serverID + "\",\"user\": \"" + id + "\"}");
                 submitCluster.updateOne(new Document().append("_id", id), updates);
                 collection.findOneAndDelete(new Document().append("_id", playerInfo.get("_id")));
 
-                webSocketClient.send("{\"server\":\"" + serverID + "\",\"user\": \"" + id + "\"}");
                 player.networkHandler.disconnect(Text.literal("You have been verified! Welcome to the server! :)"));
+                webSocketClient.close();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
             return 1;
         })).executes(context -> {
