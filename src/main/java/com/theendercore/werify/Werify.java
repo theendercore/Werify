@@ -55,7 +55,7 @@ public class Werify implements ModInitializer {
                 }
             };
 
-        } catch (URISyntaxException e ) {
+        } catch (URISyntaxException e) {
             LOGGER.warn("WebSocket Error Be Warned!");
             throw new RuntimeException(e);
         }
@@ -76,8 +76,9 @@ public class Werify implements ModInitializer {
             String pwd = StringArgumentType.getString(context, "password");
             String playerUUID = player.getUuidAsString();
 
+            player.sendMessage(Text.literal("Verifying..."));
+
             try (MongoClient mongoClient = MongoClients.create(config.getMongoURI())) {
-                webSocketClient.connectBlocking();
                 MongoDatabase database = mongoClient.getDatabase("myFirstDatabase");
                 MongoCollection<Document> collection = database.getCollection("temppasswordmodels");
                 MongoCollection<Document> submitCluster = database.getCollection("verifymodels");
@@ -106,9 +107,9 @@ public class Werify implements ModInitializer {
                         break;
                     }
                 }
+                webSocketClient.connectBlocking();
 
                 Bson updates = Updates.combine(Updates.set("verifiedSerevrs." + value + ".minecraftUUID", playerUUID), Updates.set("verifiedSerevrs." + value + ".verified", true));
-
 
                 webSocketClient.send("{\"server\":\"" + serverID + "\",\"user\": \"" + id + "\"}");
                 submitCluster.updateOne(new Document().append("_id", id), updates);
